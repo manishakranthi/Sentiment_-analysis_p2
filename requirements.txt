@@ -1,3 +1,11 @@
 pandas
-sklearn
+scikit-learn
 streamlit 
+nltk
+keras
+Keras-Preprocessing
+numpy
+regex
+tensorflow
+textblob
+tokenizers
