@@ -1,21 +1,33 @@
-import pandas as pd
-import numpy as np
-import pickle
+from keras import backend as K
+from tensorflow.keras.models import Model, load_model
 import streamlit as st
 import nltk
-nltk.download ("stopwords")
+nltk.download("stopwords")
 nltk.download("punkt")
 nltk.download('wordnet')
 nltk.download('omw-1.4')
+from nltk.tokenize import word_tokenize
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import pickle
 import re
 import string
 from textblob import Word
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
+import pandas as pd
+import numpy as np
 
+MODEL_PATH = r"model_LSTM.h5"
 
-loaded_model = pickle.load(open('filename', 'rb'))
+max_words = 500
+max_len = 464
+EMBEDDING_DIM = 32
+tokenizer_file = 'tokenizer_LSTM.pkl'
+wordnet = WordNetLemmatizer()
+regex = re.compile('[%s]' % re.escape(string.punctuation))
+
+with open(tokenizer_file,'rb') as handle:
+    tokenizer = pickle.load(handle)
 
 def text_cleaning(line_from_column):
     text = line_from_column.lower()
@@ -27,42 +39,43 @@ def text_cleaning(line_from_column):
     words = [Word(w).lemmatize() for w in words]
     # merge words 
     words = ' '.join(words)
-    return text 
+    return text
 
-def load():
-	''' Load the calculated TFIDF weights'''
+@st.cache(allow_output_mutation=True)
+def Load_model():
+    model = load_model(MODEL_PATH)
+    model.summary() # included to make it visible when model is reloaded
+    session = K.get_session()
+    return model, session
 
-	df = None
-	with open('tfidf.pickle', 'rb') as f:
-		df = pickle.load(f)
-	return df 
 
 if __name__ == '__main__':
-    st.title('Financial Sentiment Analysis :bar_chart:')
-    st.write('A simple sentiment analysis classification app')
-    st.subheader('Input the Statment below')
+    st.title('Financial Sentiment Analysis :bar_chart: ')
+    st.write('Sentiment analysis app')
+    st.subheader('Input:')
     sentence = st.text_area('Enter your text here',height=200)
     predict_btt = st.button('predict')
-    loaded_model = pickle.load(open('filename', 'rb')) 
+    model, session = Load_model()
     if predict_btt:
         clean_text = []
+        K.set_session(session)
         i = text_cleaning(sentence)
         clean_text.append(i)
-        data = load(clean_text)
-
+        sequences = tokenizer.texts_to_sequences(clean_text)
+        data = pad_sequences(sequences, maxlen =  max_len)
         # st.info(data)
-        prediction = loaded_model.predict(data)
+        prediction = model.predict(data)
 
-        prediction_prob_negative = prediction[0][-1]
-        prediction_prob_neutral = prediction[0][0]
-        prediction_prob_positive= prediction[0][1]
+        prediction_prob_negative = prediction[0][0]
+        prediction_prob_neutral = prediction[0][1]
+        prediction_prob_positive= prediction[0][2]
 
-        prediction_class = prediction(axis=-1)[0]
-        print(prediction)
-        st.header('Prediction using SVC model')
-        if prediction_class == -1:
-          st.warning('Sentence has negative sentiment')
+        prediction_class = prediction.argmax(axis=-1)[0]
+        print(prediction.argmax())
+        st.header('Prediction using LSTM model')
         if prediction_class == 0:
+          st.warning('Sentence has negative sentiment')
+        if prediction_class == 1:
           st.success('Sentence has neutral sentiment')
-        if prediction_class==1:
+        if prediction_class==2:
           st.success('Sentence has positive sentiment')
